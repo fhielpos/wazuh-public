@@ -41,7 +41,6 @@ def get_active_agents():
 
                 if (offset + limit) > agents_list['total_affected_items']:
                     limit = agents_list['total_affected_items'] - offset
-                    finish = True
             else:
                 finish = True
         else:
@@ -74,7 +73,6 @@ def get_syscheck_agent(agent):
                 
                 if (offset + limit) > syscheck_result['total_affected_items']:
                     limit = syscheck_result['total_affected_items'] - offset
-                    finish = True
             else:
                 finish = True
         else:
@@ -82,7 +80,7 @@ def get_syscheck_agent(agent):
                 # Renew token
                 get_token()
             else:
-                raise Exception(f"Error obtaining response: {agents_request.json()}")
+                raise Exception(f"Error obtaining response: {syscheck_request.json()}")
 
     return syscheck_files
 
