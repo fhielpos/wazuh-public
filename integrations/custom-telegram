@@ -1,0 +1,81 @@
+mport sys
+import json
+import logging
+
+try:
+    import requests
+    import ipinfo
+except Exception:
+    print("Module requests or ipinfo missing. Make sure to install them with: pip3 install requests && pip3 install ipinfo")
+    sys.exit(1)
+
+# Define logging
+logging.basicConfig(level="INFO", filename="/var/ossec/logs/integrations.log")
+logger = logging.getLogger(__name__)
+
+# Important stuff
+CHAT_ID = "305588585"
+IPINFO_TOKEN = "34a24508e99e70"
+
+def create_message(alert_json):
+    # Get alert information
+    title = alert_json['rule']['description'] if 'description' in alert_json['rule'] else ''
+    description = alert_json['full_log'] if 'full_log' in alert_json else ''
+    description.replace("\\n", "\n")
+    alert_level = alert_json['rule']['level'] if 'level' in alert_json['rule'] else ''
+    rule_id = alert_json['rule']['id'] if 'rule' in alert_json else ''
+    agent_name = alert_json['agent']['name'] if 'name' in alert_json['agent'] else ''
+    agent_id = alert_json['agent']['id'] if 'id' in alert_json['agent'] else ''
+    user = alert_json['data']['dstuser'] if 'dstuser' in alert_json['data'] else ''
+    ip = alert_json['data']['srcip'] if 'srcip' in alert_json['data'] else ''
+
+    if 'srcip' in alert_json['data']:
+        ipinfo_handler = ipinfo.getHandler(IPINFO_TOKEN)
+        ipinfo_data = ipinfo_handler.getDetails(ip)
+
+    msg_text = f"""
+*{title}*
+
+_{description}_
+
+*User:* {user}
+*IP:* {ip}
+*Location:* {ipinfo_data.city}, {ipinfo_data.country}
+
+*Rule:* {rule_id} (Level {alert_level})
+*Agent:* {agent_name} ({agent_id})
+"""
+
+
+    msg_data = {}
+    msg_data['chat_id'] = CHAT_ID
+    msg_data['text'] = msg_text
+    msg_data['parse_mode'] = 'markdown'
+
+    # Debug information
+    logger.debug(f"Message sent: {msg_data}")
+
+    return json.dumps(msg_data)
+
+
+
+# Get hook from config
+hook_url = sys.argv[3]
+
+# Open alert json
+with open(sys.argv[1], 'r') as alert_file:
+    alert_json = json.loads(alert_file.read())
+
+# Send the request
+msg_data = create_message(alert_json)
+headers = {'Content-Type': 'Application/json', 'Accept-Charset': 'UTF-8'}
+response = requests.post(hook_url, headers=headers, data=msg_data)
+
+# Debug information
+if response.status_code != 200:
+    logger.error(f"Failed to send message. Response code: {response.status_code} .")
+    logger.debug(f"{response.content}")
+else:
+    logger.info("Message sent")
+
+sys.exit(0)
