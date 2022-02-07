@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import requests
 import argparse
 import json
@@ -112,15 +114,13 @@ def main():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('-i', '--env_id', type=str, required=True, help='Wazuh Cloud environment id.')
+    parser.add_argument('-d', '--url', type=str, required=True, help='Wazuh API url. Example: https//IP:55000')
     parser.add_argument('-u', '--user', type=str, required=True, help='Wazuh API user.')
     parser.add_argument('-p', '--password', type=str, required=True, help='Wazuh API password.')
     args = parser.parse_args()
 
-    WAZUH_ID = args.env_id
     WAZUH_USER = args.user
     WAZUH_PASS = args.password
-
-    WAZUH_API=f"https://{WAZUH_ID}.cloud.wazuh.com/api/wazuh"
+    WAZUH_API = args.url
 
     main()
