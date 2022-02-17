@@ -57,8 +57,18 @@ def get_outdated():
 
     return agents_ids
 
-def update_agents(agent_list):
+def update_agents(outdated_agents, group_agents):
     # Update agent list
+
+    if not group_agents:
+        agent_list = outdated_agents
+    else:
+        # Build agent_list
+        agent_list = []
+        
+        for agent in group_agents:
+            if agent in outdated_agents:
+                agent_list.append(agent)
     
     offset = 0
     batch = 100
@@ -101,6 +111,41 @@ def update_agents(agent_list):
             else:
                 raise Exception(f"Error obtaining response: {update_request.json()}")
 
+def get_agents_group(group):
+
+    # Get agents in group that are active
+    agents_ids = []
+    limit = 10000
+    offset = 0
+    finish = False
+
+    while not finish:
+        agents_request = requests.get(WAZUH_API + f"/groups/{group}/agents?status=active&limit={limit}&offset={offset}", headers=HEADERS, verify=VERIFY)
+
+        if agents_request.status_code == 200:
+            agent_list = json.loads(agents_request.content.decode())['data']
+
+            for agent in agent_list['affected_items']:
+                agents_ids.append(agent['id'])
+            
+            # If there are more items to be gathered, iterate the offset
+            if agent_list['total_affected_items'] > (limit + offset):
+                offset = offset + limit
+
+                if (offset + limit) > agent_list['total_affected_items']:
+                    limit = agent_list['total_affected_items'] - offset
+
+            else:
+                finish = True
+        else:
+            if agents_request.status_code == 401:
+                # Renew token
+                get_token()
+            else:
+                raise Exception(f"Error obtaining response: {agents_request.json()}")
+
+    return agents_ids    
+
 def main():
     # Get first token
     get_token()
@@ -108,19 +153,39 @@ def main():
     # Gather outdated agents
     outdated_agents = get_outdated()
 
+    # Gather agents from group
+    if WAZUH_GROUP is not None:
+        print(f"Fetching agents from {WAZUH_GROUP}")
+        group_agents = get_agents_group(WAZUH_GROUP)
+    else:
+        group_agents = []
+
     # Update agents if there is any
     if outdated_agents:
-        update_agents(outdated_agents)
+        update_agents(outdated_agents, group_agents)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('-d', '--url', type=str, required=True, help='Wazuh API url. Example: https//IP:55000')
+    parser.add_argument('-d', '--url', type=str, required=False, help='Wazuh API url. Example: https//IP:55000')
     parser.add_argument('-u', '--user', type=str, required=True, help='Wazuh API user.')
     parser.add_argument('-p', '--password', type=str, required=True, help='Wazuh API password.')
+    parser.add_argument('-g', '--group', type=str, required=False, help="Agent groups")
+
     args = parser.parse_args()
+
+    if not args.group:
+        print("No Wazuh group specified, using all")
+        WAZUH_GROUP = None
+    else:
+        WAZUH_GROUP = args.group
+
+    if not args.url:
+        print("No Wazuh URL specified, using localhost")
+        WAZUH_API = "https://localhost:55000"
+    else:
+        WAZUH_API = args.url
 
     WAZUH_USER = args.user
     WAZUH_PASS = args.password
-    WAZUH_API = args.url
 
     main()
